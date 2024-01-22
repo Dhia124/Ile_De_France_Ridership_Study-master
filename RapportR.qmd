@@ -1,0 +1,787 @@
+---
+title: "RapportR"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+# *Analyzing and Visualizing Ridership Patterns in Île-de-France Rail Network*
+
+# Libraries :
+
+```{r}
+install.packages("readr")
+library(readr)
+
+install.packages("sf")
+library(sf)
+
+install.packages("dplyr")
+library(dplyr)
+
+install.packages("naniar")
+library(naniar)
+
+install.packages("readxl")
+library(readxl)
+
+
+library(ggplot2)
+
+install.packages("lubridate")
+library(lubridate)
+```
+
+# 1- Data Collection and Cleaning
+
+## - Collection :
+
+### Data 2023 :
+
+```{r}
+validation_data_2023 <- read_excel("validations-reseau-ferre-nombre-validations-par-jour-1er-semestre.xlsx")
+
+View(validation_data_2023)
+names(validation_data_2023)
+```
+
+#### Function Remove outliers :
+
+```{r}
+remove_outliers <- function(data, column_name) {
+  # Calculate quartiles and IQR
+  Q1 <- quantile(data[[column_name]], 0.25)
+  Q3 <- quantile(data[[column_name]], 0.75)
+  IQR_value <- Q3 - Q1
+  
+  # Set the lower and upper bounds for outliers
+  lower_bound <- Q1 - 1.5 * IQR_value
+  upper_bound <- Q3 + 1.5 * IQR_value
+  
+  # Remove outliers
+  filtered_data <- data[!(data[[column_name]] < lower_bound | data[[column_name]] > upper_bound), ]
+  
+  return(filtered_data)
+}
+
+```
+
+```{r}
+validation_data_2023 <- remove_outliers(validation_data_2023, "lda")
+```
+
+---
+
+---
+
+### Get unique values of 'lda' column :
+
+```{r}
+unique_values <- unique(validation_data_2023$lda)
+sorted_unique_values <- sort(unique_values)
+print(sorted_unique_values)
+```
+
+## Data 2022 :
+
+```{r}
+
+data_2022_S1_NB_FER <- read.delim("data-rf-2022/2022_S1_NB_FER.txt")
+nrow(data_2022_S1_NB_FER)
+
+################################### Get unique values of 'lda' column
+unique_values <- unique(data_2022_S1_NB_FER$ID_REFA_LDA)
+sorted_unique_values <- sort(unique_values)
+print(sorted_unique_values)
+###################################
+
+data_2022_S1_NB_FER <- remove_outliers(data_2022_S1_NB_FER, "ID_REFA_LDA")
+names(data_2022_S1_NB_FER)
+
+
+
+data_2022_S1_PROFIL_FER <- read.delim("data-rf-2022/2022_S1_PROFIL_FER.txt")
+data_2022_S1_PROFIL_FER <- remove_outliers(data_2022_S1_PROFIL_FER, "ID_REFA_LDA")
+
+
+
+data_2022_S2_Nb_FER <- read.delim("data-rf-2022/2022_S2_NB_FER.txt", sep = ";")
+data_2022_S2_Nb_FER <- remove_outliers(data_2022_S2_Nb_FER, "lda")
+
+data_2022_S2_PROFIL_FER <- read.delim("data-rf-2022/2022_S2_PROFIL_FER.txt", sep = ";")
+data_2022_S2_PROFIL_FER <- remove_outliers(data_2022_S2_PROFIL_FER, "lda")
+
+###### rename
+names(data_2022_S2_Nb_FER)[names(data_2022_S2_Nb_FER) == "lda"] <- "ID_REFA_LDA"
+names(data_2022_S2_PROFIL_FER)[names(data_2022_S2_PROFIL_FER) == "lda"] <- "ID_REFA_LDA"
+
+
+##### Rbind
+data_2022_NB_FER <- rbind(data_2022_S1_NB_FER, data_2022_S2_Nb_FER)
+data_2022_PROFILL_FER <- rbind(data_2022_S1_PROFIL_FER, data_2022_S2_PROFIL_FER)
+
+```
+
+## Data 2021 :
+
+```{r}
+data_2021_S1_NB_FER <- read.delim("data-rf-2021/2021_S1_NB_FER.txt")
+data_2021_S1_NB_FER <- remove_outliers(data_2021_S1_NB_FER, "ID_REFA_LDA")
+
+data_2021_S1_PROFIL_FER <- read.delim("data-rf-2021/2021_S1_PROFIL_FER.txt")
+data_2021_S1_PROFIL_FER <- remove_outliers(data_2021_S1_PROFIL_FER, "ID_REFA_LDA")
+
+
+
+data_2021_S2_Nb_FER <- read.delim("data-rf-2021/2021_S2_NB_FER.txt")
+data_2021_S2_Nb_FER <- remove_outliers(data_2021_S2_Nb_FER, "ID_REFA_LDA")
+
+data_2021_S2_PROFIL_FER <- read.delim("data-rf-2021/2021_S2_PROFIL_FER.txt")
+data_2021_S2_PROFIL_FER <- remove_outliers(data_2021_S2_PROFIL_FER, "ID_REFA_LDA")
+
+
+
+##### Rbind
+data_2021_NB_FER <- rbind(data_2021_S1_NB_FER, data_2021_S2_Nb_FER)
+data_2021_PROFILL_FER <- rbind(data_2021_S1_PROFIL_FER, data_2021_S2_PROFIL_FER)
+
+```
+
+## Data 2020 :
+
+```{r}
+data_2020_S1_NB_FER <- read.delim("data-rf-2020/2020_S1_NB_FER.txt")
+data_2020_S1_NB_FER <- remove_outliers(data_2020_S1_NB_FER, "ID_REFA_LDA")
+
+data_2020_S1_PROFIL_FER <- read.delim("data-rf-2020/2020_S1_PROFIL_FER.txt")
+data_2020_S1_PROFIL_FER <- remove_outliers(data_2020_S1_PROFIL_FER, "ID_REFA_LDA")
+
+
+data_2020_S2_Nb_FER <- read.delim("data-rf-2020/2020_S2_NB_FER.txt")
+data_2020_S2_Nb_FER <- remove_outliers(data_2020_S2_Nb_FER, "ID_REFA_LDA")
+
+data_2020_S2_PROFIL_FER <- read.delim("data-rf-2020/2020_S2_PROFIL_FER.txt")
+data_2020_S2_PROFIL_FER <- remove_outliers(data_2020_S2_PROFIL_FER, "ID_REFA_LDA")
+
+
+##### Rbind
+data_2020_NB_FER <- rbind(data_2020_S1_NB_FER, data_2020_S2_Nb_FER)
+data_2020_PROFILL_FER <- rbind(data_2020_S1_PROFIL_FER, data_2020_S2_PROFIL_FER)
+```
+
+## Data 2019 :
+
+```{r}
+data_2019_S1_NB_FER <- read.delim("data-rf-2019/2019_S1_NB_FER.txt")
+data_2019_S1_NB_FER <- remove_outliers(data_2019_S1_NB_FER, "ID_REFA_LDA")
+
+
+
+data_2019_S1_PROFIL_FER <- read.delim("data-rf-2019/2019_S1_PROFIL_FER.txt")
+data_2019_S1_PROFIL_FER <- remove_outliers(data_2019_S1_PROFIL_FER, "ID_REFA_LDA")
+
+
+data_2019_S2_Nb_FER <- read.delim("data-rf-2019/2019_S2_NB_FER.txt")
+data_2019_S2_Nb_FER <- remove_outliers(data_2019_S2_Nb_FER, "ID_REFA_LDA")
+
+
+data_2019_S2_PROFIL_FER <- read.delim("data-rf-2019/2019_S2_PROFIL_FER.txt")
+data_2019_S2_PROFIL_FER <- remove_outliers(data_2019_S2_PROFIL_FER, "ID_REFA_LDA")
+
+##### Rbind
+data_2019_NB_FER <- rbind(data_2019_S1_NB_FER, data_2019_S2_Nb_FER)
+data_2019_PROFILL_FER <- rbind(data_2019_S1_PROFIL_FER, data_2019_S2_PROFIL_FER)
+```
+
+## Data 2018 :
+
+```{r}
+data_2018_S1_NB_FER <- read.delim("data-rf-2018/2018_S1_NB_FER.txt")
+data_2018_S1_NB_FER <- remove_outliers(data_2018_S1_NB_FER, "ID_REFA_LDA")
+
+data_2018_S1_PROFIL_FER <- read.delim("data-rf-2018/2018_S1_PROFIL_FER.txt")
+data_2018_S1_PROFIL_FER <- remove_outliers(data_2018_S1_PROFIL_FER, "ID_REFA_LDA")
+
+
+data_2018_S2_Nb_FER <- read.delim("data-rf-2018/2018_S2_NB_Fer.txt")
+data_2018_S2_Nb_FER <- remove_outliers(data_2018_S2_Nb_FER, "ID_REFA_LDA")
+
+data_2018_S2_PROFIL_FER <- read.delim("data-rf-2018/2018_S2_Profil_Fer.txt")
+data_2018_S2_PROFIL_FER <- remove_outliers(data_2018_S2_PROFIL_FER, "ID_REFA_LDA")
+
+##### Rbind
+data_2018_NB_FER <- rbind(data_2018_S1_NB_FER, data_2018_S2_Nb_FER)
+data_2018_PROFILL_FER <- rbind(data_2018_S1_PROFIL_FER, data_2018_S2_PROFIL_FER)
+```
+
+## Data 2017 :
+
+```{r}
+data_2017_S1_NB_FER <- read.delim("data-rf-2017/2017S1_NB_FER.txt")
+```
+
+#### Preprocessing of the Data :
+
+```{r}
+data_2017_S1_NB_FER$NB_VALD <- ifelse(data_2017_S1_NB_FER$NB_VALD == "Moins de 5", "5", data_2017_S1_NB_FER$NB_VALD)
+data_2017_S1_NB_FER$NB_VALD <- as.numeric(data_2017_S1_NB_FER$NB_VALD)
+
+
+unique_values <- unique(data_2017_S1_NB_FER$ID_REFA_LDA)
+sorted_unique_values <- sort(unique_values)
+print(sorted_unique_values)
+
+
+unique_values <- unique(data_2017_S1_NB_FER$NB_VALD)
+sorted_unique_values <- sort(unique_values)
+print(sorted_unique_values)
+
+
+
+
+
+data_2017_S1_NB_FER <- data_2017_S1_NB_FER %>%
+  filter(!(ID_REFA_LDA == "?" | ID_REFA_LDA == ""))
+
+
+data_2017_S1_NB_FER$ID_REFA_LDA <- as.numeric(data_2017_S1_NB_FER$ID_REFA_LDA)
+summary(data_2017_S1_NB_FER)
+
+data_2017_S1_NB_FER <- remove_outliers(data_2017_S1_NB_FER, "ID_REFA_LDA")
+```
+
+```{r}
+data_2017_S1_PROFIL_FER <- read.delim("data-rf-2017/2017S1_PROFIL_FER.txt")
+###### Remove "?" and ""
+data_2017_S1_PROFIL_FER <- data_2017_S1_PROFIL_FER %>%
+  filter(!(ID_REFA_LDA == "?" | ID_REFA_LDA == ""))
+##### Transform character to numeric
+data_2017_S1_PROFIL_FER$ID_REFA_LDA <- as.numeric(data_2017_S1_PROFIL_FER$ID_REFA_LDA)
+
+summary(data_2017_S1_PROFIL_FER)
+
+
+data_2017_S1_PROFIL_FER <- remove_outliers(data_2017_S1_PROFIL_FER, "ID_REFA_LDA")
+
+
+```
+
+```{r}
+data_2017_S2_Nb_FER <- read.delim("data-rf-2017/2017_S2_NB_FER.txt")
+data_2017_S2_Nb_FER <- remove_outliers(data_2017_S2_Nb_FER, "ID_REFA_LDA")
+
+data_2017_S2_PROFIL_FER <- read.delim("data-rf-2017/2017_S2_PROFIL_FER.txt")
+data_2017_S2_PROFIL_FER <- remove_outliers(data_2017_S2_PROFIL_FER, "ID_REFA_LDA")
+
+##### Rbind
+data_2017_NB_FER <- rbind(data_2017_S1_NB_FER, data_2017_S2_Nb_FER)
+data_2017_PROFILL_FER <- rbind(data_2017_S1_PROFIL_FER, data_2017_S2_PROFIL_FER)
+```
+
+## Data Stops : 
+
+```{r}
+stops <- read_csv2("zones-d-arrets.csv")
+```
+
+## Spatial data :
+
+```{r}
+locations=st_read("REF_ZdA/PL_ZDL_R_05_01_2024.shp",crs=4326)
+
+```
+
+## Merge Stops with Spatial :
+
+```{r}
+stops_with_locations <- merge(stops, locations, by.x = "ZdAId", by.y = "id_refa")
+```
+
+# 2- Cleaning :
+
+### Check for missing values in the entire dataset :
+
+```{r}
+missing_values_2023 <- validation_data_2023 %>%
+  summarise_all(~sum(is.na(.)))
+
+missing_values_2022 <- data_2022_NB_FER %>%
+  summarise_all(~sum(is.na(.)))
+
+missing_values_2021 <- data_2021_NB_FER %>%
+  summarise_all(~sum(is.na(.)))
+
+missing_values_2020 <- data_2020_NB_FER %>%
+  summarise_all(~sum(is.na(.)))
+
+missing_values_2019 <- data_2019_NB_FER %>%
+  summarise_all(~sum(is.na(.)))
+
+missing_values_2018 <- data_2018_NB_FER %>%
+  summarise_all(~sum(is.na(.)))
+
+missing_values_2017 <- data_2017_NB_FER %>%
+  summarise_all(~sum(is.na(.)))
+
+
+# Display the result
+print(missing_values_2023)
+print(missing_values_2022)
+print(missing_values_2021)
+print(missing_values_2020)
+print(missing_values_2019)
+print(missing_values_2018)
+print(missing_values_2017)
+
+```
+
+###  =\> There 's no missing value
+
+### Replace ? by mode :
+
+```{r}
+clean_dataset <- function(df) {
+ 
+  ############## Calculate the mode of the 'titre' column
+  mode_value <- names(sort(table(df$CATEGORIE_TITRE), decreasing = TRUE))[1]
+  
+  ##################################### Replace "?" with mode value
+  
+  df$CATEGORIE_TITRE[df$CATEGORIE_TITRE == "?"] <- mode_value
+  
+  return(df)
+}
+
+
+######### Clean Data
+
+
+validation_data_2023 <- clean_dataset(validation_data_2023)
+data_2022_NB_FER <- clean_dataset(data_2022_NB_FER)
+data_2021_NB_FER <- clean_dataset(data_2021_NB_FER)
+data_2020_NB_FER <- clean_dataset(data_2020_NB_FER)
+data_2019_NB_FER <- clean_dataset(data_2019_NB_FER)
+data_2018_NB_FER <- clean_dataset(data_2018_NB_FER)
+data_2017_NB_FER <- clean_dataset(data_2017_NB_FER)
+```
+
+```{r}
+names(validation_data_2023)[names(validation_data_2023) == "lda"] <- "ID_REFA_LDA"
+```
+
+## Update Date Format of the Data :
+
+```{r}
+
+data_2022_NB_FER$JOUR <- format(as.Date(data_2022_NB_FER$JOUR, format = "%d/%m/%Y"), "%Y-%m-%d")
+
+data_2021_NB_FER$JOUR <- format(as.Date(data_2021_NB_FER$JOUR, format = "%d/%m/%Y"), "%Y-%m-%d")
+
+data_2020_NB_FER$JOUR <- format(as.Date(data_2020_NB_FER$JOUR, format = "%d/%m/%Y"), "%Y-%m-%d")
+
+data_2019_NB_FER$JOUR <- format(as.Date(data_2019_NB_FER$JOUR, format = "%d/%m/%Y"), "%Y-%m-%d")
+
+data_2018_NB_FER$JOUR <- format(as.Date(data_2018_NB_FER$JOUR, format = "%d/%m/%Y"), "%Y-%m-%d")
+
+data_2017_NB_FER$JOUR <- format(as.Date(data_2017_NB_FER$JOUR, format = "%d/%m/%Y"), "%Y-%m-%d")
+
+
+```
+
+## Remove outliers of column Nb Validation :
+
+```{r}
+validation_data_2023 <- remove_outliers(validation_data_2023, "NB_VALD")
+data_2022_NB_FER <- remove_outliers(data_2022_NB_FER, "NB_VALD")
+data_2021_NB_FER <- remove_outliers(data_2021_NB_FER, "NB_VALD")
+data_2020_NB_FER <- remove_outliers(data_2020_NB_FER, "NB_VALD")
+data_2019_NB_FER <- remove_outliers(data_2019_NB_FER, "NB_VALD")
+data_2018_NB_FER <- remove_outliers(data_2018_NB_FER, "NB_VALD")
+data_2017_NB_FER <- remove_outliers(data_2017_NB_FER, "NB_VALD")
+```
+
+## Merge all Data :
+
+#### 
+
+```{r}
+data_NB_FER <- rbind(validation_data_2023, data_2022_NB_FER,data_2021_NB_FER,data_2020_NB_FER,data_2019_NB_FER,data_2018_NB_FER,data_2017_NB_FER)
+
+```
+
+```{r}
+nrow(data_NB_FER)
+```
+
+### Check missing Values :
+
+```{r}
+missing_values <- data_NB_FER %>%
+  summarise_all(~sum(is.na(.)))
+print(missing_values)
+```
+
+#### We aim to analyze the entirety of our dataset; however, due to its extensive size and the significant memory and time requirements, we have chosen to focus our efforts on a subset of 10,000 data points for the time being. This approach allows us to efficiently manage the computational resources and streamline the analysis process. We believe that by working on this reduced sample, we can still derive valuable insights without compromising the overall quality of our findings.
+
+```{r}
+data_NB_FER <- data_NB_FER[sample(nrow(data_NB_FER), 10000), ]
+```
+
+```{r}
+nrow(data_NB_FER)
+```
+
+```{r}
+View(data_NB_FER)
+```
+
+```{r}
+summary(data_NB_FER)
+```
+
+### Check Nb validation of Data :
+
+```{r}
+unique_values <- unique(data_NB_FER$NB_VALD)
+sorted_unique_values <- sort(unique_values)
+print(sorted_unique_values)
+```
+
+## Transform Jour to Date :
+
+```{r}
+data_NB_FER$JOUR <- as.Date(data_NB_FER$JOUR, format = "%Y-%m-%d")
+```
+
+## Extract month and year :
+
+```{r}
+data_NB_FER$Month <- month(data_NB_FER$JOUR, label = TRUE)
+data_NB_FER$Year <- year(data_NB_FER$JOUR)
+```
+
+```{r}
+sum(data_NB_FER$NB_VALD == 0)
+```
+
+## Boxplot to identify outliers :
+
+#### =\>There 's no outliers
+
+### 2. Exploratory Data Analysis (EDA)
+
+```{r}
+ggplot(data_NB_FER, aes(x = '', y = NB_VALD)) + # x is left blank for a single boxplot
+  geom_boxplot() +
+  labs(title = "Boxplot of Daily Validations", y = "Number of Validations")
+```
+
+## Verify Density :
+
+```{r}
+ggplot(data_NB_FER, aes(x = NB_VALD)) +
+  geom_density(fill = "blue", alpha = 0.5) +
+  labs(title = "Density Plot of Daily Validations", x = "Number of Validations") +
+  xlim(c(min(data_NB_FER$NB_VALD), max(data_NB_FER$NB_VALD)))
+```
+
+#### Since This density plot  appears to show a distribution that is right-skewed we created  a log-transformed density plot for our data  to normalize it, reduce skewness, and  make it more symmetric.
+
+```{r}
+ggplot(data_NB_FER, aes(x = log(NB_VALD + 0.001))) +
+  geom_density(fill = "blue", alpha = 0.5) +
+  labs(title = "Log-transformed Density Plot of Daily Validations", x = "Log(Number of Validations + 0.001)") +
+  xlim(c(min(log(data_NB_FER$NB_VALD + 0.001)), max(log(data_NB_FER$NB_VALD + 0.001))))
+
+```
+
+## Histogram of Ridership :
+
+```{r}
+ggplot(data_NB_FER, aes(x = NB_VALD)) +
+  geom_histogram(bins = 30, fill = "blue", color = "black") +
+  labs(title = "Distribution of Daily Ridership", x = "Daily Validations", y = "Frequency")
+```
+
+```{r}
+hist(data_NB_FER$NB_VALD, breaks = 30, col = "lightblue", main = "Histogram of NB_VALD")
+```
+
+## Time Series Plot :
+
+```{r}
+ggplot(data_NB_FER, aes(x = JOUR, y = NB_VALD)) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "Ridership Over Time", x = "Date", y = "Number of Validations")
+```
+
+## Boxplot by Month for a particular year :
+
+```{r}
+ggplot(subset(data_NB_FER, Year == 2020), aes(x = Month, y = NB_VALD)) +
+  geom_boxplot() +
+  labs(title = "Monthly Ridership Distribution for 2020", x = "Month", y = "Ridership")
+
+```
+
+## Trend :
+
+```{r}
+ggplot(data_NB_FER, aes(x = JOUR, y = NB_VALD)) +
+  geom_line() +
+  theme_minimal() +
+  ggtitle("Ridership Trend Over Time") +
+  xlab("Date") +
+  ylab("Number of Validations")
+```
+
+## Seasonality :
+
+```{r}
+ggplot(data_NB_FER, aes(x = Month, y = NB_VALD)) +
+  geom_boxplot() +
+  facet_wrap(~Year) +
+  theme_minimal() +
+  ggtitle("Monthly Ridership Patterns by Year") +
+  xlab("Month") +
+  ylab("Ridership")
+```
+
+#### This boxplot illustrates the monthly ridership patterns by year for the Île-de-France rail network. Each box represents the distribution of daily validation counts for a given month, separated into years from 2017 to 2023. The y-axis indicates the number of validations (ridership), and the x-axis categorizes the data by month. This visualization is useful for identifying trends and seasonal variations in ridership over different years. For instance, it can highlight peak travel months, potential outliers, or months with unusually low or high ridership. It's a powerful way to detect seasonality and yearly trends in the data
+
+## Distribution of Ridership :
+
+```{r}
+ggplot(data_NB_FER, aes(x = NB_VALD)) +
+  geom_histogram(bins = 30, fill = "blue", color = "black") +
+  theme_minimal() +
+  ggtitle("Distribution of Ridership") +
+  xlab("Ridership") +
+  ylab("Frequency")
+```
+
+#### From the distribution shown, it's evident that the ridership data is positively skewed, with a high frequency of lower ridership counts and a long tail towards higher counts. This suggests that there are many days with relatively low ridership and fewer days with very high ridership. Such a distribution can be common in transit data, reflecting regular variation in usage, possibly due to weekdays versus weekends, holidays, or special events. This visualization is crucial for understanding the general behavior of ridership and for making decisions related to transit management and scheduling.
+
+## Weekdays vs. Weekends :
+
+```{r}
+data_NB_FER$Weekday <- weekdays(as.Date(data_NB_FER$JOUR))
+
+ggplot(data_NB_FER, aes(x = Weekday, y = NB_VALD)) +
+  geom_boxplot() +
+  theme_minimal() +
+  ggtitle("Ridership on Weekdays vs. Weekends") +
+  xlab("Day of Week") +
+  ylab("Ridership")
+```
+
+## Station-Level Analysis:
+
+```{r}
+ggplot(data_NB_FER, aes(x = ID_REFA_LDA, y = NB_VALD)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("Ridership by Station") +
+  xlab("Station ID") +
+  ylab("Ridership")
+```
+
+## Comparative Analysis Across Years :
+
+```{r}
+ggplot(data_NB_FER, aes(x = JOUR, y = NB_VALD, color = as.factor(Year))) +
+  geom_line() +
+  theme_minimal() +
+  ggtitle("Annual Comparative Ridership Trend") +
+  xlab("Date") +
+  ylab("Ridership")
+```
+
+#### The graph presents a multi-year comparison of ridership, with each year's data depicted in a distinct color. It reveals fluctuations in ridership across different times, potentially indicating seasonal trends, growth patterns, or impacts of specific events. The dense clustering of lines suggests variability in data, which could warrant further analysis to understand underlying factors.
+
+## 3- Comparison with Norms :
+
+### Basil Normal Week : 
+
+```{r}
+
+names(data_NB_FER)
+
+baseline_week <- data_NB_FER %>%
+  group_by(day_of_week = weekdays(JOUR)) %>%
+  summarise(avg_vald = mean(NB_VALD))
+
+
+# Create a bar plot with a specific color
+ggplot(baseline_week, aes(x = day_of_week, y = avg_vald)) +
+  geom_bar(stat = "identity", position = "dodge", fill = "skyblue", color = "black") +
+  labs(title = "Baseline Average Validations by Day of the Week",
+       x = "Day of the Week",
+       y = "Average Validations") +
+  theme_minimal()
+```
+
+#### The bar chart illustrates the average number of ridership validations for each day of the week. The relatively uniform height of the bars indicates that the average validations are consistent across the days, with no significant fluctuations, suggesting a stable pattern of ridership throughout the week.
+
+### Add Column isholiday : 
+
+```{r}
+calculate_easter <- function(year) {
+  a <- year %% 19
+  b <- year %/% 100
+  c <- year %% 100
+  d <- b %/% 4
+  e <- b %% 4
+  f <- (b + 8) %/% 25
+  g <- (b - f + 1) %/% 3
+  h <- (19 * a + b - d - g + 15) %% 30
+  i <- c %/% 4
+  k <- c %% 4
+  l <- (32 + 2 * e + 2 * i - h - k) %% 7
+  m <- (a + 11 * h + 22 * l) %/% 451
+  month <- (h + l - 7 * m + 114) %/% 31
+  day <- ((h + l - 7 * m + 114) %% 31) + 1
+  return(as.Date(paste(year, month, day, sep = "-")))
+}
+
+
+# Function to generate a list of holidays for a specific year
+generate_holidays <- function(year) {
+  easter_sunday <- calculate_easter(year)
+  holidays <- c(
+    as.Date(paste(year, "01-01", sep = "-")),        # New Year's Day
+    easter_sunday + days(-1),                        # Easter Monday
+    as.Date(paste(year, "05-01", sep = "-")),        # Labor Day
+    as.Date(paste(year, "05-08", sep = "-")),        # Victory in Europe Day
+    easter_sunday + days(39),                        # Ascension Day
+    easter_sunday + days(50),                        # Whit Monday
+    as.Date(paste(year, "07-14", sep = "-")),        # Bastille Day
+    as.Date(paste(year, "08-15", sep = "-")),        # Assumption of Mary
+    as.Date(paste(year, "11-01", sep = "-")),        # All Saints' Day
+    as.Date(paste(year, "11-11", sep = "-")),        # Armistice Day
+    as.Date(paste(year, "12-25", sep = "-"))         # Christmas Day
+  )
+  return(holidays)
+}
+
+
+
+
+# Generate a list of holidays from 2017 to 2023
+holidays_all <- lapply(2017:2023, generate_holidays)
+
+all_holidays <- unique(unlist(holidays_all))
+
+
+all_holidays <- as.Date(all_holidays)
+
+
+
+
+
+
+data_NB_FER$is_holiday <- data_NB_FER$JOUR %in% all_holidays
+```
+
+```{r}
+# Create a dataset for holiday and non-holiday periods
+holiday_data <- data_NB_FER[data_NB_FER$is_holiday, ]
+non_holiday_data <- data_NB_FER[!data_NB_FER$is_holiday, ]
+
+
+# Calculate average validations for holiday and non-holiday periods
+avg_vald_holiday <- mean(holiday_data$NB_VALD)
+avg_vald_non_holiday <- mean(non_holiday_data$NB_VALD)
+
+# Print average validations for comparison
+print(paste("Average Validations on Holidays:", avg_vald_holiday))
+print(paste("Average Validations on Non-Holidays:", avg_vald_non_holiday))
+
+# Visualize the deviations
+deviations_df <- data.frame(
+  period = c("Holidays", "Non-Holidays"),
+  avg_vald = c(avg_vald_holiday, avg_vald_non_holiday)
+)
+
+# Create a bar plot
+library(ggplot2)
+ggplot(deviations_df, aes(x = period, y = avg_vald, fill = period)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  labs(title = "Average Validations During Holidays and Non-Holidays",
+       x = "Period",
+       y = "Average Validations") +
+  theme_minimal()
+```
+
+```{r}
+
+library(corrplot)
+data_NB_FER <- data_NB_FER %>%
+  mutate(carte_imaginaire = ifelse(CATEGORIE_TITRE == "IMAGINE R", 1, 0))
+
+data_NB_FER$is_holiday_numeric <- as.numeric(data_NB_FER$is_holiday == TRUE)
+cor_matrix <- cor(data_NB_FER[, c("is_holiday_numeric", "NB_VALD", "carte_imaginaire")])
+corrplot(cor_matrix, method = "color", addCoef.col = "black",
+         tl.col = "black", tl.srt = 45,
+         col = colorRampPalette(c("blue", "white", "red"))(200),
+         type = "upper", order = "hclust",
+         title = "Correlation Heatmap Including Holiday Flag",
+         cl.lim = c(-1, 1))
+```
+
+## 4- statics :
+
+```{r}
+t_test_results <- t.test(NB_VALD ~ is_holiday_numeric, data = data_NB_FER)
+
+contingency_table <- table(data_NB_FER$carte_imaginaire, data_NB_FER$is_holiday_numeric)
+
+#Perform the Chi-Square test
+chi_square_results <- chisq.test(contingency_table)
+
+#Output the results
+print(t_test_results)
+print(chi_square_results)
+```
+
+```{r}
+summary(data_NB_FER$NB_VALD)
+
+```
+
+### This summary provides insights into the distribution of the number of validations, including central tendency (mean, median) and dispersion (range, quartiles).
+
+### The mean represents the average value of the data set, calculated by adding up all the values and dividing by the number of observations. In this case, the mean number of validations is 189.9.
+
+### The median is the middle value of the data set when it is sorted in ascending order. In this case, the median number of validations is 76, which means that half of the observations have a number of validations below 76, and half have a number of validations above 76.
+
+```{r}
+t.test(data_NB_FER$NB_VALD ~ data_NB_FER$is_holiday)
+
+```
+
+#### The obtained p-value, which is well below the 0.05 threshold, indicates a high level of significance. This suggests a noteworthy disparity in validation numbers between periods classified as Holidays and those categorized as Non-Holidays. Furthermore, the confidence interval furnishes a range for the variance in means, underscoring that the mean number of validations is significantly diminished during Holiday periods in comparison to Non-Holiday periods.
+
+```{r}
+hist(data_NB_FER$NB_VALD, main = "Histogram of NB_VALD")
+
+```
+
+#### We lack normality, rendering it impractical to consider the results of the t-test.
+
+```{r}
+wilcox.test(NB_VALD ~ is_holiday, data = data_NB_FER)
+
+```
+
+#### The Wilcox on rank sum test with continuity correction was conducted to compare the distribution of the variable NB_VALD between holiday and non-holiday periods. The test resulted in a W statistic of 1743751 and a p-value of 0.01235. The alternative hypothesis suggests that there is a significant shift in the location (median) between the two groups, indicating a difference in the distribution of "NB_VALD" during holiday and non-holiday periods. The p-value being less than the significance level (typically 0.05) suggests that the observed difference is statistically significant.anova(lm(NB_VALD \~ Weekday, data = data_NB_FER))
+
+```{r}
+anova(lm(NB_VALD ~ Weekday, data = data_NB_FER))
+```
+
+#### The outcomes of the ANOVA analysis reveal a substantial disparity in means among various weekdays. The low p-value \< 0.05 indicates a noteworthy variation in validation numbers between at least two weekdays. The substantial F value reinforces the evidence of a significant difference. This significant outcome points to variations specific to weekdays in terms of ridership.
